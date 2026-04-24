@@ -1,18 +1,21 @@
+import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/lib/auth";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 
-export default function ProtectedRoute({
-  children,
-}: {
-  children: JSX.Element;
-}) {
+export default function ProtectedRoute({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="animate-spin w-8 h-8" />
+      <div
+        dir="rtl"
+        className="flex min-h-screen items-center justify-center bg-slate-50"
+      >
+        <div className="flex items-center gap-2 text-slate-600">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          جاري التحميل...
+        </div>
       </div>
     );
   }
@@ -21,5 +24,5 @@ export default function ProtectedRoute({
     return <Navigate to="/auth" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
