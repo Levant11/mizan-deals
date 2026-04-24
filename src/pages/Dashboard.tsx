@@ -22,9 +22,9 @@ export default function Dashboard() {
     return (
       <div
         dir="rtl"
-        className="min-h-screen flex items-center justify-center bg-slate-50"
+        className="flex min-h-screen items-center justify-center bg-slate-50"
       >
-        <div className="text-slate-500">جاري التحميل...</div>
+        جاري التحميل...
       </div>
     );
   }
@@ -32,7 +32,7 @@ export default function Dashboard() {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl bg-white p-6 shadow-sm border border-slate-200 md:flex-row md:items-center">
+        <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm md:flex-row md:items-center">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">لوحة التحكم</h1>
             <p className="mt-2 text-slate-500">
@@ -50,15 +50,17 @@ export default function Dashboard() {
         </div>
 
         <div className="mb-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
               <UserCircle />
             </div>
             <h3 className="font-semibold text-slate-900">الحساب</h3>
-            <p className="mt-2 text-sm text-slate-500">{user?.email}</p>
+            <p className="mt-2 break-all text-sm text-slate-500">
+              {user?.email || "غير معروف"}
+            </p>
           </div>
 
-          <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
               <ShieldCheck />
             </div>
@@ -68,7 +70,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
               <BarChart3 />
             </div>
@@ -80,7 +82,7 @@ export default function Dashboard() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <button
             onClick={() => navigate("/create-listing")}
-            className="rounded-2xl bg-white p-6 text-right shadow-sm border border-slate-200 transition hover:-translate-y-1 hover:shadow-md"
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-right shadow-sm transition hover:-translate-y-1 hover:shadow-md"
           >
             <FilePlus2 className="mb-4 text-blue-700" />
             <h3 className="font-bold text-slate-900">إنشاء إعلان</h3>
@@ -91,7 +93,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => navigate("/listings")}
-            className="rounded-2xl bg-white p-6 text-right shadow-sm border border-slate-200 transition hover:-translate-y-1 hover:shadow-md"
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-right shadow-sm transition hover:-translate-y-1 hover:shadow-md"
           >
             <Search className="mb-4 text-emerald-700" />
             <h3 className="font-bold text-slate-900">تصفح الإعلانات</h3>
@@ -102,7 +104,7 @@ export default function Dashboard() {
 
           <button
             onClick={() => navigate("/my-listings")}
-            className="rounded-2xl bg-white p-6 text-right shadow-sm border border-slate-200 transition hover:-translate-y-1 hover:shadow-md"
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-right shadow-sm transition hover:-translate-y-1 hover:shadow-md"
           >
             <BarChart3 className="mb-4 text-indigo-700" />
             <h3 className="font-bold text-slate-900">إعلاناتي</h3>
