@@ -105,7 +105,7 @@ function Home() {
                 <div className="h-3 w-3/4 rounded-full bg-emerald-400" />
               </div>
               <p className="mt-3 text-sm text-slate-300">
-                نموذج تجريبي للتحقق الذكي من الإعلانات.
+                نموذج أولي للتحقق الذكي من الإعلانات.
               </p>
             </div>
           </div>
@@ -115,14 +115,18 @@ function Home() {
   );
 }
 
-function ListingsPlaceholder() {
+function PlaceholderPage({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 p-8">
       <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-3xl font-bold">تصفح الإعلانات</h1>
-        <p className="mt-3 text-slate-500">
-          هذه الصفحة سيتم بناؤها في المرحلة التالية.
-        </p>
+        <h1 className="text-3xl font-bold">{title}</h1>
+        <p className="mt-3 text-slate-500">{description}</p>
         <Link
           to="/dashboard"
           className="mt-6 inline-block rounded-lg bg-blue-700 px-4 py-2 text-white"
@@ -132,48 +136,6 @@ function ListingsPlaceholder() {
       </div>
     </div>
   );
-}
-
-function CreateListingPlaceholder() {
-  return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-3xl font-bold">إنشاء إعلان</h1>
-        <p className="mt-3 text-slate-500">
-          سيتم تفعيل نظام الإعلانات في المرحلة التالية.
-        </p>
-        <Link
-          to="/dashboard"
-          className="mt-6 inline-block rounded-lg bg-blue-700 px-4 py-2 text-white"
-        >
-          العودة للوحة التحكم
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function MyListingsPlaceholder() {
-  return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-4xl rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-3xl font-bold">إعلاناتي</h1>
-        <p className="mt-3 text-slate-500">
-          لا توجد إعلانات بعد. سيتم تفعيل هذه الصفحة قريباً.
-        </p>
-        <Link
-          to="/dashboard"
-          className="mt-6 inline-block rounded-lg bg-blue-700 px-4 py-2 text-white"
-        >
-          العودة للوحة التحكم
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function NotFound() {
-  return <Navigate to="/" replace />;
 }
 
 export default function App() {
@@ -192,13 +154,24 @@ export default function App() {
           }
         />
 
-        <Route path="/listings" element={<ListingsPlaceholder />} />
+        <Route
+          path="/listings"
+          element={
+            <PlaceholderPage
+              title="تصفح الإعلانات"
+              description="سيتم بناء نظام الإعلانات الحقيقي في المرحلة التالية."
+            />
+          }
+        />
 
         <Route
           path="/create-listing"
           element={
             <ProtectedRoute>
-              <CreateListingPlaceholder />
+              <PlaceholderPage
+                title="إنشاء إعلان"
+                description="سيتم تفعيل إنشاء الإعلانات في المرحلة التالية."
+              />
             </ProtectedRoute>
           }
         />
@@ -207,12 +180,27 @@ export default function App() {
           path="/my-listings"
           element={
             <ProtectedRoute>
-              <MyListingsPlaceholder />
+              <PlaceholderPage
+                title="إعلاناتي"
+                description="ستظهر هنا إعلاناتك بعد تفعيل نظام البيع."
+              />
             </ProtectedRoute>
           }
         />
 
-        <Route path="*" element={<NotFound />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <PlaceholderPage
+                title="لوحة الإدارة"
+                description="سيتم بناء لوحة الإدارة في مرحلة لاحقة."
+              />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       <Toaster position="top-center" richColors />
