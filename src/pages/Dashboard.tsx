@@ -1,56 +1,51 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { useI18n } from "@/lib/i18n";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus, FileText, MessageSquare, ListChecks } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const { t, lang } = useI18n();
-  const [stats, setStats] = useState({ listings: 0, offersIn: 0, offersOut: 0, unlocks: 0 });
+  const { user, role, loading, signOut } = useAuth();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const [l, oin, oout, u] = await Promise.all([
-        supabase.from("listings").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
-        supabase.from("offers").select("id, listings!inner(seller_id)", { count: "exact", head: true }).eq("listings.seller_id", user.id),
-        supabase.from("offers").select("id", { count: "exact", head: true }).eq("buyer_id", user.id),
-        supabase.from("listing_unlocks").select("id", { count: "exact", head: true }).eq("buyer_id", user.id),
-      ]);
-      setStats({ listings: l.count || 0, offersIn: oin.count || 0, offersOut: oout.count || 0, unlocks: u.count || 0 });
-    })();
-  }, [user]);
-
-  const cards = [
-    { label: lang === "ar" ? "إعلاناتي" : "My listings", value: stats.listings, icon: FileText, to: "/my-listings" },
-    { label: lang === "ar" ? "عروض واردة" : "Offers received", value: stats.offersIn, icon: MessageSquare, to: "/offers" },
-    { label: lang === "ar" ? "عروض مرسلة" : "Offers sent", value: stats.offersOut, icon: MessageSquare, to: "/offers" },
-    { label: lang === "ar" ? "تفاصيل مفتوحة" : "Unlocked", value: stats.unlocks, icon: ListChecks, to: "/browse" },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="animate-spin w-8 h-8" />
+      </div>
+    );
+  }
 
   return (
-    <div className="container py-8 animate-fade-in">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-3xl font-bold">{t("nav.dashboard")}</h1>
-        <Link to="/listings/new"><Button className="gradient-accent text-accent-foreground border-0"><Plus className="h-4 w-4" />{t("nav.create")}</Button></Link>
-      </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((c, i) => (
-          <Link key={i} to={c.to}>
-            <Card className="hover:shadow-elegant transition-base">
-              <CardHeader className="flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm text-muted-foreground font-medium">{c.label}</CardTitle>
-                <c.icon className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent><div className="text-3xl font-bold">{c.value}</div></CardContent>
-            </Card>
-          </Link>
-        ))}
+    <div className="min-h-screen bg-gray-100 p-6">
+      <div className="max-w-4xl mx-auto bg-white shadow rounded-xl p-6">
+        <h1 className="text-3xl font-bold mb-4">لوحة التحكم</h1>
+
+        <div className="space-y-2">
+          <p>
+            <strong>البريد الإلكتروني:</strong> {user?.email}
+          </p>
+          <p>
+            <strong>الدور:</strong>{" "}
+            <span className="bg-gray-200 px-2 py-1 rounded">
+              {role || "user"}
+            </span>
+          </p>
+        </div>
+
+        <div className="mt-6 flex gap-4">
+          <button
+            onClick={() => navigate("/profile")}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md"
+          >
+            الملف الشخصي
+          </button>
+
+          <button
+            onClick={signOut}
+            className="bg-red-600 text-white px-4 py-2 rounded-md"
+          >
+            تسجيل الخروج
+          </button>
+        </div>
       </div>
     </div>
   );
