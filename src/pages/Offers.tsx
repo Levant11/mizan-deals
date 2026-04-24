@@ -30,7 +30,7 @@ export default function Offers() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [user]);
 
-  const updateOffer = async (id: string, status: string) => {
+  const updateOffer = async (id: string, status: "accepted" | "declined" | "countered" | "withdrawn") => {
     const { error } = await supabase.from("offers").update({ status }).eq("id", id);
     if (error) toast.error(error.message); else { toast.success("Updated"); load(); }
   };

@@ -82,7 +82,7 @@ export default function NewListing() {
     const parsed = schema.safeParse({ ...form, asking_price: parseFloat(form.asking_price) });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
     setSubmitting(true);
-    const { data, error } = await supabase.from("listings").insert({
+    const insertPayload: any = {
       seller_id: user.id,
       ...parsed.data,
       images,
@@ -90,7 +90,8 @@ export default function NewListing() {
       ai_integrity_notes: aiResult?.notes ?? null,
       status: "pending_review",
       listing_fee_paid: false,
-    }).select("id").single();
+    };
+    const { data, error } = await supabase.from("listings").insert(insertPayload).select("id").single();
     if (error) { toast.error(error.message); setSubmitting(false); return; }
     await supabase.from("fee_transactions").insert({ user_id: user.id, fee_type: "listing_fee", amount: 10, currency: "USD", status: "pending", related_id: data.id });
     toast.success(lang === "ar" ? "تم إرسال الإعلان للمراجعة" : "Listing submitted for review");
