@@ -1,134 +1,293 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-type UserRole = "admin" | "user";
+export default function Auth() {
+  const navigate = useNavigate();
 
-type AuthContextType = {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  role: UserRole;
-  signOut: () => Promise<void>;
-  refreshRole: () => Promise<void>;
-};
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<UserRole>("user");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const fetchUserRole = async (userId: string) => {
+  const isLogin = mode === "login";
+
+  const validateLogin = () => {
+    if (!email.trim()) {
+      toast.error("يرجى إدخال البريد الإلكتروني");
+      return false;
+    }
+
+    if (!password.trim()) {
+      toast.error("يرجى إدخال كلمة المرور");
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateSignup = () => {
+    if (!fullName.trim() || fullName.trim().length < 3) {
+      toast.error("يرجى إدخال الاسم الكامل");
+      return false;
+    }
+
+    if (!phone.trim()) {
+      toast.error("يرجى إدخال رقم الهاتف");
+      return false;
+    }
+
+    if (!phone.startsWith("+964")) {
+      toast.error("رقم الهاتف يجب أن يبدأ بـ +964");
+      return false;
+    }
+
+    if (!email.trim()) {
+      toast.error("يرجى إدخال البريد الإلكتروني");
+      return false;
+    }
+
+    if (!password.trim() || password.length < 6) {
+      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleLogin = async () => {
+    if (!validateLogin()) return;
+
+    setLoading(true);
+
     try {
-      const { data, error } = await (supabase as any)
-        .from("users")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle();
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
       if (error) {
-        console.warn("Could not fetch user role:", error.message);
-        setRole("user");
+        toast.error(error.message || "فشل تسجيل الدخول");
         return;
       }
 
-      const fetchedRole = data?.role === "admin" ? "admin" : "user";
-      setRole(fetchedRole);
+      toast.success("تم تسجيل الدخول بنجاح");
+      navigate("/dashboard");
     } catch (err) {
-      console.warn("Role fetch failed:", err);
-      setRole("user");
-    }
-  };
-
-  const refreshRole = async () => {
-    if (user?.id) {
-      await fetchUserRole(user.id);
-    }
-  };
-
-  useEffect(() => {
-    let mounted = true;
-
-    const initAuth = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-
-        if (!mounted) return;
-
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-
-        if (data.session?.user?.id) {
-          await fetchUserRole(data.session.user.id);
-        }
-      } catch (err) {
-        console.warn("Auth initialization failed:", err);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-
-      if (newSession?.user?.id) {
-        await fetchUserRole(newSession.user.id);
-      } else {
-        setRole("user");
-      }
-
+      console.error(err);
+      toast.error("حدث خطأ غير متوقع أثناء تسجيل الدخول");
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+  const handleSignup = async () => {
+    if (!validateSignup()) return;
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setRole("user");
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            phone: phone.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        toast.error(error.message || "فشل إنشاء الحساب");
+        return;
+      }
+
+      if (data.user) {
+        const { error: profileError } = await (supabase as any)
+          .from("users")
+          .upsert(
+            {
+              id: data.user.id,
+              email: data.user.email,
+              full_name: fullName.trim(),
+              phone: phone.trim(),
+              role: "user",
+            },
+            {
+              onConflict: "id",
+            }
+          );
+
+        if (profileError) {
+          console.warn("Profile upsert warning:", profileError.message);
+        }
+      }
+
+      toast.success("تم إنشاء الحساب بنجاح");
+
+      /**
+       * If email confirmation is enabled in Supabase,
+       * the user may need to confirm email before login.
+       */
+      navigate("/dashboard");
+    } catch (err) {
+      console.error(err);
+      toast.error("حدث خطأ غير متوقع أثناء إنشاء الحساب");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (isLogin) {
+      await handleLogin();
+    } else {
+      await handleSignup();
+    }
   };
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        loading,
-        role,
-        signOut,
-        refreshRole,
-      }}
+    <div
+      dir="rtl"
+      className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-white to-blue-50 px-4"
     >
-      {children}
-    </AuthContext.Provider>
+      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl border border-slate-200 p-8">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-slate-900">MIZAN</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            منصة الأصول المتعثرة في العراق
+          </p>
+        </div>
+
+        <div className="mb-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() => setMode("login")}
+            className={`rounded-lg py-2 text-sm font-medium transition ${
+              isLogin
+                ? "bg-white text-blue-700 shadow"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            تسجيل الدخول
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMode("signup")}
+            className={`rounded-lg py-2 text-sm font-medium transition ${
+              !isLogin
+                ? "bg-white text-blue-700 shadow"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            إنشاء حساب
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {!isLogin && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  الاسم الكامل
+                </label>
+                <input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="أدخل اسمك الكامل"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  رقم الهاتف
+                </label>
+                <input
+                  dir="ltr"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+9647701234567"
+                  className="w-full rounded-lg border border-slate-300 px-4 py-3 text-left outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              البريد الإلكتروني
+            </label>
+            <input
+              dir="ltr"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@email.com"
+              className="w-full rounded-lg border border-slate-300 px-4 py-3 text-left outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              كلمة المرور
+            </label>
+            <div className="relative">
+              <input
+                dir="ltr"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 pl-12 text-left outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+              />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading}
+            className="mt-2 flex w-full items-center justify-center rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isLogin ? (
+              "تسجيل الدخول"
+            ) : (
+              "إنشاء حساب"
+            )}
+          </button>
+        </div>
+
+        <div className="mt-6 text-center text-sm text-slate-500">
+          {isLogin ? "ليس لديك حساب؟" : "لديك حساب بالفعل؟"}{" "}
+          <button
+            type="button"
+            onClick={() => setMode(isLogin ? "signup" : "login")}
+            className="font-semibold text-blue-700 hover:underline"
+          >
+            {isLogin ? "أنشئ حساباً" : "سجل الدخول"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-
-  return context;
 }
