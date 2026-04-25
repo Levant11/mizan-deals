@@ -1,161 +1,85 @@
-import { useState } from "react";
-import { Search, Filter, Lock, MapPin } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useI18n } from "@/lib/i18n";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MapPin, Tag, Search } from "lucide-react";
+
+const categories = ["all","real_estate","vehicle","equipment","inventory","business","other"] as const;
 
 export default function Browse() {
-  const [selectedAsset, setSelectedAsset] = useState<any>(null);
-  const [showUnlock, setShowUnlock] = useState(false);
+  const { t } = useI18n();
+  const [listings, setListings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<string>("all");
 
-  const mockAssets = [
-    {
-      id: 1,
-      title: "مطعم فاخر - الكرادة",
-      city: "بغداد",
-      category: "مطاعم",
-      price: "$120,000",
-      score: 85,
-      risk: "منخفض",
-    },
-    {
-      id: 2,
-      title: "مصنع مواد غذائية",
-      city: "أربيل",
-      category: "صناعات",
-      price: "$450,000",
-      score: 74,
-      risk: "متوسط",
-    },
-    {
-      id: 3,
-      title: "مجمع مكاتب تجارية",
-      city: "السليمانية",
-      category: "عقارات",
-      price: "$800,000",
-      score: 68,
-      risk: "متوسط",
-    },
-  ];
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      let q = supabase.from("listings").select("id,title,public_summary,category,city,asking_price,currency,images,ai_integrity_score,created_at").eq("status","active").order("created_at", { ascending: false }).limit(60);
+      if (category !== "all") q = q.eq("category", category as any);
+      const { data } = await q;
+      setListings(data || []);
+      setLoading(false);
+    })();
+  }, [category]);
+
+  const filtered = listings.filter(l => !search || l.title.toLowerCase().includes(search.toLowerCase()) || (l.city || "").toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-7xl">
-
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Marketplace</h1>
-
-          <div className="flex gap-4">
-            <div className="flex items-center gap-2 bg-white border px-4 py-2 rounded-lg">
-              <Search size={16} />
-              <input
-                placeholder="ابحث عن أصل..."
-                className="outline-none"
-              />
-            </div>
-
-            <button className="flex items-center gap-2 bg-white border px-4 py-2 rounded-lg hover:bg-slate-100">
-              <Filter size={16} />
-              تصفية
-            </button>
+    <div className="container py-8 animate-fade-in">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <h1 className="text-3xl font-bold">{t("nav.browse")}</h1>
+        <div className="flex gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:w-64">
+            <Search className="absolute top-1/2 -translate-y-1/2 start-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder={t("common.search")} value={search} onChange={(e) => setSearch(e.target.value)} className="ps-9" />
           </div>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {categories.map(c => <SelectItem key={c} value={c}>{c === "all" ? t("common.category") : t(`category.${c}` as any)}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
+      </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {mockAssets.map((asset) => (
-            <div
-              key={asset.id}
-              className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-lg transition"
-            >
-              <div className="flex justify-between items-start">
-                <h3 className="font-bold text-lg">{asset.title}</h3>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    asset.score > 80
-                      ? "bg-emerald-100 text-emerald-700"
-                      : asset.score > 70
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  AI {asset.score}
-                </span>
-              </div>
-
-              <div className="mt-3 text-sm text-slate-500 flex items-center gap-2">
-                <MapPin size={14} />
-                {asset.city}
-              </div>
-
-              <div className="mt-4">
-                <p className="text-xl font-bold">{asset.price}</p>
-                <p className="text-sm text-slate-500">
-                  مستوى المخاطرة: {asset.risk}
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setSelectedAsset(asset);
-                  setShowUnlock(true);
-                }}
-                className="mt-6 w-full flex items-center justify-center gap-2 bg-blue-700 text-white py-2 rounded-lg hover:bg-blue-800"
-              >
-                <Lock size={16} />
-                Unlock Intelligence
-              </button>
-            </div>
+      {loading ? (
+        <div className="text-center py-20 text-muted-foreground">{t("common.loading")}</div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-20 text-center text-muted-foreground">No active listings yet.</CardContent></Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(l => (
+            <Link key={l.id} to={`/listings/${l.id}`}>
+              <Card className="overflow-hidden hover:shadow-elegant transition-base h-full">
+                <div className="aspect-video bg-muted relative">
+                  {l.images?.[0] ? (
+                    <img src={l.images[0]} alt={l.title} className="w-full h-full object-cover" loading="lazy" />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-muted-foreground"><Tag className="h-10 w-10" /></div>
+                  )}
+                  {l.ai_integrity_score != null && (
+                    <Badge className="absolute top-2 end-2 bg-success text-success-foreground">AI {l.ai_integrity_score}/100</Badge>
+                  )}
+                </div>
+                <CardContent className="p-4 space-y-2">
+                  <h3 className="font-semibold line-clamp-1">{l.title}</h3>
+                  <p className="text-sm text-muted-foreground line-clamp-2">{l.public_summary || ""}</p>
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" />{l.city || "—"}</span>
+                    {l.asking_price && <span className="font-bold text-primary">{Number(l.asking_price).toLocaleString()} {l.currency}</span>}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
-      </div>
-
-      {showUnlock && (
-        <UnlockModal
-          asset={selectedAsset}
-          onClose={() => setShowUnlock(false)}
-        />
       )}
-    </div>
-  );
-}
-
-function UnlockModal({ asset, onClose }: any) {
-  const [unlocked, setUnlocked] = useState(false);
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-[420px]">
-        <h2 className="text-xl font-bold mb-4">
-          Unlock Asset Intelligence
-        </h2>
-
-        {!unlocked ? (
-          <>
-            <p className="text-slate-600 mb-6">
-              للحصول على تفاصيل الأصل الكاملة:
-            </p>
-
-            <button
-              onClick={() => setUnlocked(true)}
-              className="w-full bg-blue-700 text-white py-3 rounded-lg hover:bg-blue-800"
-            >
-              دفع 25$ (محاكاة)
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="bg-slate-100 p-4 rounded-lg mb-4">
-              <p>المالك: أحمد الكرخي</p>
-              <p>الهاتف: +9647701234567</p>
-              <p>العنوان الكامل: {asset.city}</p>
-            </div>
-          </>
-        )}
-
-        <button
-          onClick={onClose}
-          className="mt-6 w-full border border-slate-300 py-2 rounded-lg"
-        >
-          إغلاق
-        </button>
-      </div>
     </div>
   );
 }

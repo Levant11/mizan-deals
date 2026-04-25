@@ -1,177 +1,56 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Lock, TrendingUp, DollarSign, Send } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus, FileText, MessageSquare, ListChecks } from "lucide-react";
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [selectedAsset, setSelectedAsset] = useState<any>(null);
-  const [showUnlock, setShowUnlock] = useState(false);
-  const [showOffer, setShowOffer] = useState(false);
+  const { t, lang } = useI18n();
+  const [stats, setStats] = useState({ listings: 0, offersIn: 0, offersOut: 0, unlocks: 0 });
 
-  const mockAssets = [
-    {
-      id: 1,
-      title: "مطعم راقي - الكرادة",
-      city: "بغداد",
-      price: "$120,000",
-      score: 82,
-    },
-    {
-      id: 2,
-      title: "مصنع مواد غذائية",
-      city: "أربيل",
-      price: "$450,000",
-      score: 74,
-    },
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const [l, oin, oout, u] = await Promise.all([
+        supabase.from("listings").select("id", { count: "exact", head: true }).eq("seller_id", user.id),
+        supabase.from("offers").select("id, listings!inner(seller_id)", { count: "exact", head: true }).eq("listings.seller_id", user.id),
+        supabase.from("offers").select("id", { count: "exact", head: true }).eq("buyer_id", user.id),
+        supabase.from("listing_unlocks").select("id", { count: "exact", head: true }).eq("buyer_id", user.id),
+      ]);
+      setStats({ listings: l.count || 0, offersIn: oin.count || 0, offersOut: oout.count || 0, unlocks: u.count || 0 });
+    })();
+  }, [user]);
+
+  const cards = [
+    { label: lang === "ar" ? "إعلاناتي" : "My listings", value: stats.listings, icon: FileText, to: "/my-listings" },
+    { label: lang === "ar" ? "عروض واردة" : "Offers received", value: stats.offersIn, icon: MessageSquare, to: "/offers" },
+    { label: lang === "ar" ? "عروض مرسلة" : "Offers sent", value: stats.offersOut, icon: MessageSquare, to: "/offers" },
+    { label: lang === "ar" ? "تفاصيل مفتوحة" : "Unlocked", value: stats.unlocks, icon: ListChecks, to: "/browse" },
   ];
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 p-8">
-      <div className="mx-auto max-w-7xl">
-
-        <h1 className="text-3xl font-bold mb-2">لوحة المستثمر</h1>
-        <p className="text-slate-500 mb-10">أهلاً {user?.email}</p>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {mockAssets.map((asset) => (
-            <div
-              key={asset.id}
-              className="bg-white p-6 rounded-2xl shadow border border-slate-200"
-            >
-              <h3 className="font-bold text-lg">{asset.title}</h3>
-              <p className="text-slate-500 text-sm mt-1">
-                {asset.city}
-              </p>
-
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-xl font-bold">{asset.price}</span>
-                <span className="text-sm text-emerald-600 font-semibold">
-                  AI Score {asset.score}
-                </span>
-              </div>
-
-              <div className="mt-6 flex gap-3">
-                <button
-                  onClick={() => {
-                    setSelectedAsset(asset);
-                    setShowUnlock(true);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-700 text-white py-2 rounded-lg hover:bg-blue-800"
-                >
-                  <Lock size={16} />
-                  Unlock Intelligence
-                </button>
-
-                <button
-                  onClick={() => {
-                    setSelectedAsset(asset);
-                    setShowOffer(true);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 border border-slate-300 py-2 rounded-lg hover:bg-slate-100"
-                >
-                  <Send size={16} />
-                  تقديم عرض
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+    <div className="container py-8 animate-fade-in">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <h1 className="text-3xl font-bold">{t("nav.dashboard")}</h1>
+        <Link to="/listings/new"><Button className="gradient-accent text-accent-foreground border-0"><Plus className="h-4 w-4" />{t("nav.create")}</Button></Link>
       </div>
-
-      {showUnlock && (
-        <UnlockModal
-          asset={selectedAsset}
-          onClose={() => setShowUnlock(false)}
-        />
-      )}
-
-      {showOffer && (
-        <OfferModal
-          asset={selectedAsset}
-          onClose={() => setShowOffer(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-function UnlockModal({ asset, onClose }: any) {
-  const [unlocked, setUnlocked] = useState(false);
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-[400px]">
-        <h2 className="text-xl font-bold mb-4">
-          Unlock Asset Intelligence
-        </h2>
-
-        {!unlocked ? (
-          <>
-            <p className="text-slate-600 mb-6">
-              للحصول على البيانات الكاملة للأصل:
-            </p>
-
-            <button
-              onClick={() => setUnlocked(true)}
-              className="w-full bg-blue-700 text-white py-3 rounded-lg hover:bg-blue-800"
-            >
-              دفع 25$ (محاكاة)
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="bg-slate-100 p-4 rounded-lg mb-4">
-              <p>المالك: أحمد الكرخي</p>
-              <p>الهاتف: +9647701234567</p>
-              <p>العنوان الكامل: الكرادة - بغداد</p>
-            </div>
-          </>
-        )}
-
-        <button
-          onClick={onClose}
-          className="mt-6 w-full border border-slate-300 py-2 rounded-lg"
-        >
-          إغلاق
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function OfferModal({ asset, onClose }: any) {
-  const [price, setPrice] = useState("");
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-[400px]">
-        <h2 className="text-xl font-bold mb-4">
-          تقديم عرض على {asset.title}
-        </h2>
-
-        <input
-          placeholder="السعر المقترح"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          className="w-full border p-3 rounded-lg mb-4"
-        />
-
-        <button
-          onClick={() => {
-            alert("تم إرسال العرض (محاكاة)");
-            onClose();
-          }}
-          className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700"
-        >
-          إرسال العرض
-        </button>
-
-        <button
-          onClick={onClose}
-          className="mt-4 w-full border border-slate-300 py-2 rounded-lg"
-        >
-          إلغاء
-        </button>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map((c, i) => (
+          <Link key={i} to={c.to}>
+            <Card className="hover:shadow-elegant transition-base">
+              <CardHeader className="flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm text-muted-foreground font-medium">{c.label}</CardTitle>
+                <c.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent><div className="text-3xl font-bold">{c.value}</div></CardContent>
+            </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );
