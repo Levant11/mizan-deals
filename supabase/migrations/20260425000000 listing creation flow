@@ -1,0 +1,97 @@
+-- =========================================================
+-- Migration: Seller Listing Creation Flow Extensions
+-- Adds tier, high_value flag, tags, condition, dimensions,
+-- GPS fields to listings table.
+-- =========================================================
+
+-- 1. Listing tier enum
+DO $$ BEGIN
+  CREATE TYPE public.listing_tier AS ENUM ('standard', 'featured', 'high_value');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- 2. Extend listings table
+ALTER TABLE public.listings
+  ADD COLUMN IF NOT EXISTS tier            public.listing_tier NOT NULL DEFAULT 'standard',
+  ADD COLUMN IF NOT EXISTS is_high_value   BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS tags            TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS condition       TEXT,
+  ADD COLUMN IF NOT EXISTS year_built      INT,
+  ADD COLUMN IF NOT EXISTS area_sqm        NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS gps_lat         NUMERIC(9,6),
+  ADD COLUMN IF NOT EXISTS gps_lng         NUMERIC(9,6),
+  ADD COLUMN IF NOT EXISTS region          TEXT,
+  ADD COLUMN IF NOT EXISTS operator_verified BOOLEAN NOT NULL DEFAULT false;
+
+-- 3. Index for tier-based queries
+CREATE INDEX IF NOT EXISTS idx_listings_tier      ON public.listings(tier);
+CREATE INDEX IF NOT EXISTS idx_listings_high_value ON public.listings(is_high_value) WHERE is_high_value = true;
+CREATE INDEX IF NOT EXISTS idx_listings_tags       ON public.listings USING GIN(tags);
+
+-- 4. RLS: GPS/exact address hidden unless Level 2 unlock exists
+-- Buyers can only see gps_lat/gps_lng if they have a paid level-2 unlock.
+-- We enforce this in the application layer (select without gps fields by default).
+-- Admin can always see all fields (enforced by has_role check in app).
+
+-- 5. Constraint: high_value listings require operator_verified = true
+--    before unlock is allowed (enforced in app + edge function, documented here).
+COMMENT ON COLUMN public.listings.operator_verified IS
+  'Must be true before high_value listing details can be unlocked by buyers.';
+
+COMMENT ON COLUMN public.listings.gps_lat IS
+  'Hidden from buyers until listing_unlocks.unlock_level >= 2 and paid = true.';
+
+COMMENT ON COLUMN public.listings.gps_lng IS
+  'Hidden from buyers until listing_unlocks.unlock_level >= 2 and paid = true.';
+
+-- 6. unlocks table alias (the existing table is listing_unlocks, some queries use "unlocks")
+-- Create a view so both names work:
+CREATE OR REPLACE VIEW public.unlocks AS
+  SELECT * FROM public.listing_unlocks;
+
+-- 7. Rate limiting table for listing creation
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  action      TEXT NOT NULL,  -- 'create_listing' | 'unlock' | 'message'
+  window_start TIMESTAMPTZ NOT NULL DEFAULT date_trunc('hour', now()),
+  count       INT NOT NULL DEFAULT 1,
+  UNIQUE(user_id, action, window_start)
+);
+ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users see own rate limits" ON public.rate_limits FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+-- 8. Abuse reports table (listing & message abuse)
+CREATE TABLE IF NOT EXISTS public.abuse_reports (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL,  -- 'listing' | 'message' | 'user'
+  target_id   UUID NOT NULL,
+  reason      TEXT NOT NULL,
+  details     TEXT,
+  resolved    BOOLEAN NOT NULL DEFAULT false,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.abuse_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users insert own reports" ON public.abuse_reports FOR INSERT TO authenticated WITH CHECK (auth.uid() = reporter_id);
+CREATE POLICY "Users see own reports"   ON public.abuse_reports FOR SELECT TO authenticated USING (auth.uid() = reporter_id);
+CREATE POLICY "Admins manage reports"   ON public.abuse_reports FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin'));
+
+-- 9. Suspicious behavior flags (auto-populated by edge functions)
+CREATE TABLE IF NOT EXISTS public.suspicious_flags (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  listing_id  UUID REFERENCES public.listings(id) ON DELETE CASCADE,
+  flag_type   TEXT NOT NULL,
+  -- 'rapid_unlocks' | 'repeated_failed_payments' | 'duplicate_phone'
+  -- 'multi_account_device' | 'duplicate_listing_photos'
+  details     JSONB,
+  resolved    BOOLEAN NOT NULL DEFAULT false,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.suspicious_flags ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage suspicious flags" ON public.suspicious_flags FOR ALL TO authenticated
+  USING (public.has_role(auth.uid(), 'admin'));
+
+-- 10. Storage bucket policy update: only owner can list their upload folder
+-- (already in previous migration; no change needed)
